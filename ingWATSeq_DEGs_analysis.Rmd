@@ -1,0 +1,706 @@
+---
+title: "ingWATSeq_DEGs_analysis_25-26"
+output: html_document
+date: "2026-01-13"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(magrittr)
+source(here::here("InitializeProject.R"))
+```
+
+
+
+```{r, load data}
+
+files <- c(
+  Efruxi_CHX  = here::here(datadir,
+    "Condition#Tumor&Treatment#Efruxifermin_vs_Condition#Tumor&Treatment#untreated_edgeRResults.xlsx"),
+  AAV_CHX = here::here(datadir,
+    "Condition#Tumor&Treatment#FGF21_AAV_vs_Condition#Tumor&Treatment#untreated_edgeRResults.xlsx"),
+  CHX_healthy = here::here(datadir,
+    "Condition#Tumor&Treatment#untreated_vs_Condition#Healthy&Treatment#untreated_edgeRResults.xlsx"),
+  Efruxi_HC = here::here(datadir,
+    "Condition#Tumor&Treatment#Efruxifermin_vs_Condition#Healthy&Treatment#untreated_edgeRResults.xlsx"),
+  AAV_HC = here::here(datadir,
+    "Condition#Tumor&Treatment#FGF21_AAV_vs_Condition#Healthy&Treatment#untreated_edgeRResults.xlsx"),
+  Efruxi_AAV = here::here(datadir,
+    "Condition#Tumor&Treatment#Efruxifermin_vs_Condition#Tumor&Treatment#FGF21_AAV_edgeRResults.xlsx"))
+data <- lapply(files, rio::import, trust = TRUE)
+
+Efruxi_CHX <- data$Efruxi_CHX
+AAV_CHX <- data$AAV_CHX
+CHX_healthy <- data$CHX_healthy
+Efruxi_HC <- data$Efruxi_HC
+AAV_HC <- data$AAV_HC
+Efruxi_AAV <- data$Efruxi_AAV
+
+save(Efruxi_AAV, AAV_CHX, AAV_HC, Efruxi_CHX, Efruxi_HC, CHX_healthy, file = "RNASeq_edgeR_data.RData")
+
+```
+
+```{r, filter DEGs + Venns}
+library(dplyr)
+library(ggvenn)
+
+# set filter thresholds
+logFC_cutoff <- 1
+FDR_cutoff <- 0.05
+
+
+# select genes meeting the filters, up and down individually
+sig_genes <- function(data) {
+  up <- data %>% filter(logFC >= logFC_cutoff, FDR < FDR_cutoff) %>% pull(external_gene_name)
+  down <- data %>% filter(logFC <= -logFC_cutoff, FDR < FDR_cutoff) %>% pull(external_gene_name)
+
+  # ensures empty sets are character 0
+  if(length(up) == 0) up <- character(0)
+  if(length(down) == 0) down <- character(0)
+  # for up, down and combined entries
+  list(up = unique(up), 
+       down = unique(down),
+       all = unique(c(up, down)))
+}
+
+
+# for individual rows with up, down and combined
+sig_Efruxi_CHX <- sig_genes(Efruxi_CHX)
+sig_AAV_CHX <- sig_genes(AAV_CHX)
+sig_CHX_HC <- sig_genes(CHX_healthy)
+sig_Efruxi_HC <- sig_genes(Efruxi_HC)
+sig_AAV_HC <- sig_genes(AAV_HC)
+sig_Efruxi_AAV <- sig_genes(Efruxi_AAV)
+
+sig_all_contrasts <- cbind(sig_Efruxi_CHX, 
+                           sig_AAV_CHX, 
+                           sig_CHX_HC, 
+                           sig_Efruxi_HC, 
+                           sig_AAV_HC,
+                           sig_Efruxi_AAV)
+
+# significant Dup EGs for each contrast
+up_genes <- list(Efruxi_CHX = sig_Efruxi_CHX$up,
+                 AAV_CHX = sig_AAV_CHX$up,
+                 CHX_HC = sig_CHX_HC$up,
+                 Efruxi_HC = sig_Efruxi_HC$up,
+                 AAV_HC = sig_AAV_HC$up,
+                 Efruxi_AAV = sig_Efruxi_AAV$up)
+
+# significant down genes for each contrast
+down_genes <- list(Efruxi_CHX = sig_Efruxi_CHX$down,
+                 AAV_CHX = sig_AAV_CHX$down,
+                 CHX_HC = sig_CHX_HC$down,
+                 Efruxi_HC = sig_Efruxi_HC$down,
+                 AAV_HC = sig_AAV_HC$down,
+                 Efruxi_AAV = sig_Efruxi_AAV$down)
+
+
+
+### Treated Tumor DEGs + untreated Tumor DEGs ###
+# intersection list for venn - up genes
+up_genes_venn <- list(Efruxi_CHX = sig_Efruxi_CHX$up,
+                 AAV_CHX = sig_AAV_CHX$up,
+                 CHX_HC = sig_CHX_HC$up)
+
+# intersection list for venn - down genes
+down_genes_venn <- list(Efruxi_CHX = sig_Efruxi_CHX$down,
+                        AAV_CHX = sig_AAV_CHX$down,
+                        CHX_HC = sig_CHX_HC$down)
+
+# venn diagram
+ggvenn(up_genes_venn,
+       fill_color = c("lightslateblue", "maroon3", "gray77"),
+       fill_alpha = 0.4,
+       stroke_size = 0.1,
+       set_name_size = 3,
+       text_size = 3,
+       show_percentage = TRUE)+
+  ggtitle("Overlap of Upregulated Genes") +
+  theme(plot.title = element_text(hjust = 0.5, size = 10))
+
+
+# intersection list for venn - intersection DEGs Treatments
+treatments_DEGs_genes_venn <- list(Efruxi_CHX = sig_Efruxi_CHX$up,
+                                  AAV_CHX = sig_AAV_CHX$up,
+                                  Efruxi_CHX = sig_Efruxi_CHX$down,
+                                  AAV_CHX = sig_AAV_CHX$down)
+# venn diagram
+plot <- ggvenn(treatments_DEGs_genes_venn,
+       fill_color = c("lightslateblue", "maroon3"),
+       fill_alpha = 0.4,
+       stroke_size = 0.1,
+       set_name_size = 5,
+       text_size = 6,
+       show_percentage = TRUE)+
+  ggtitle("Overlap of Diff. regulated Genes_treatments") +
+  theme(plot.title = element_text(hjust = 0.5, size = 10))
+
+plot
+ggsave("VENN_DEGs_treatments_600dpi.tiff", plot, dpi = 600)
+
+
+
+# intersection DEGs of up in treated vs down in untreated (12 DEGs)
+common_intersection <- Reduce(intersect, list(sig_Efruxi_CHX$up, sig_AAV_CHX$up, sig_CHX_HC$down))
+# get intersection genes of AAVvsCHX and EfruxivsCHX
+common_up_DEGs_treatments <- Reduce(intersect, list(sig_Efruxi_CHX$up, sig_AAV_CHX$up))
+common_down_DEGs_treatments <- Reduce(intersect, list(sig_Efruxi_CHX$down, sig_AAV_CHX$down))
+# filter unique up in treated (80 DEGs up = 92 up genes - 12 common with CHX)            
+unique_up_DEGs_treatments <- setdiff(common_up_DEGs_treatments, common_up)
+
+
+# export data
+sig_all_contrasts %>% 
+  rio::export(here::here(datadir, "significant_DEGs_all_contrasts.RDS"))
+up_genes_venn %>% 
+  rio::export(here::here(datadir, "up_genes_treatments_CHX.RDS"))
+down_genes_venn %>% 
+  rio::export(here::here(datadir, "down_genes_treatments_CHX.RDS"))
+common_up_DEGs_treatments %>% 
+  rio::export(here::here(datadir, "DEGs_treatments_92.RDS"))
+unique_up_DEGs_treatments %>% 
+  rio::export(here::here(datadir, "unique_DEGs_treatments_80.RDS"))
+common_intersection %>% 
+  rio::export(here::here(datadir, "DEGs_treatments_CHX_common_12.RDS"))
+
+```
+
+```{r, Heatmaps of DEGs}
+library(dplyr)
+library(pheatmap)
+
+#import data
+rpm_mat <- rio::import(here::here(datadir, "genesRPMTable.xlsx"), trust = TRUE)
+# determine genes to be filtered
+genes_of_interest <- sig_CHX_HC$all
+# filter genes of interest
+rpm_sub <- rpm_mat %>%
+  dplyr::filter(external_gene_name %in% genes_of_interest)
+# check intersection of genes 
+intersect(genes_of_interest, rpm_mat$external_gene_name)
+
+# annotate groups
+count_cols <- grep("^\\d+_", colnames(rpm_sub), value = TRUE)
+count_cols
+length(count_cols)
+
+groups <- sub("^\\d+_", "", count_cols)
+groups
+table(groups)
+
+
+# sample annotation
+sample_info <- data.frame(sample = count_cols,
+                          group = groups,
+                          stringsAsFactors = FALSE)
+
+# prepare matrix, subtract all descriptive columns
+rpm_sub <- rpm_sub %>%
+  dplyr::select(-description) %>%
+  dplyr::select(-gene) %>%
+  dplyr::select(external_gene_name, all_of(count_cols))
+
+rpm_sub <- rpm_sub %>%
+  tibble::column_to_rownames("external_gene_name")
+  
+# mean per groups
+rpm_mean <- sapply(
+  split(seq_along(groups), groups),
+  function(idx) rowMeans(rpm_sub[, idx, drop = FALSE], na.rm = TRUE))
+
+# log transform
+rpm_sub_log <- log2(rpm_mean + 1)
+# z scale
+rpm_sub_scaled <- t(scale(t(rpm_sub_log)))
+
+# order groups 
+group_order <- c("healthy", "CHX", "AAV", "Efruxi")
+rpm_sub_scaled <- rpm_sub_scaled[, group_order]
+
+
+# define legend color breaks
+min <- min(-1.5)
+max <- max(1.5)
+
+# Make color breaks so that 0 is white
+n_colors <- 100
+breaks <- c(
+  seq(min, 0, length.out = n_colors/2 + 1),
+  seq(0, max, length.out = n_colors/2 + 1)[-1]
+)
+
+heatmap <- pheatmap(
+  rpm_sub_scaled,
+  main = paste("DEGs CHXvsHC_all groups"),
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  color = colorRampPalette(c("navy","white","firebrick3"))(n_colors),
+  cellwidth = 10,
+  cellheight = 10,
+  fontsize_row = 9,
+  fontsize_col = 9,
+  breaks = breaks)
+
+ggsave("heatmap_DEGs_CHXvsHC.tiff", heatmap, dpi = 600, width = 5, height = 12)
+
+
+```
+
+```{r, Heatmaps of DEG intersections}
+library(pheatmap)
+library(dplyr)
+library(ggplot2)
+
+
+
+# load data
+treatment_DEGs_92 <- rio::import(here::here(datadir, "DEGs_treatments_92.RDS"), trust = TRUE)
+treatment_DEGs_unique_80 <- rio::import(here::here(datadir, "unique_DEGs_treatments_80.RDS"), trust = TRUE)
+common_intersection_12 <- rio::import(here::here(datadir, "DEGs_treatments_CHX_common_12.RDS"), trust = TRUE)
+
+common_intersection_12 <- as.data.frame(common_intersection_12)
+colnames(common_intersection_12)[1] <- "external_gene_name"
+treatment_DEGs_unique_80 <- as.data.frame(treatment_DEGs_unique_80)
+colnames(treatment_DEGs_unique_80)[1] <- "external_gene_name"
+treatment_DEGs_92 <- data.frame(value = unlist(treatment_DEGs_92))
+colnames(treatment_DEGs_92)[1] <- "external_gene_name"
+
+
+
+
+#import data
+rpm_mat <- rio::import(here::here(datadir, "genesRPMTable.xlsx"), trust = TRUE)
+# determine genes to be filtered
+genes_of_interest <- treatment_DEGs_92
+genes_of_interest <- genes_of_interest$external_gene_name
+# filter genes of interest
+rpm_sub <- rpm_mat %>%
+  dplyr::filter(external_gene_name %in% genes_of_interest)
+# check intersection of genes 
+intersect(genes_of_interest, rpm_mat$external_gene_name)
+
+# annotate groups
+count_cols <- grep("^\\d+_", colnames(rpm_sub), value = TRUE)
+count_cols
+length(count_cols)
+
+groups <- sub("^\\d+_", "", count_cols)
+groups
+table(groups)
+
+
+# sample annotation
+sample_info <- data.frame(sample = count_cols,
+                          group = groups,
+                          stringsAsFactors = FALSE)
+
+# prepare matrix, subtract all descriptive columns
+rpm_sub <- rpm_sub %>%
+  dplyr::select(-description) %>%
+  dplyr::select(-gene) %>%
+  dplyr::select(external_gene_name, all_of(count_cols))
+
+rpm_sub <- rpm_sub %>%
+  tibble::column_to_rownames("external_gene_name")
+  
+# mean per groups
+rpm_mean <- sapply(
+  split(seq_along(groups), groups),
+  function(idx) rowMeans(rpm_sub[, idx, drop = FALSE], na.rm = TRUE))
+
+# log transform
+rpm_sub_log <- log2(rpm_mean + 1)
+# z scale
+rpm_sub_scaled <- t(scale(t(rpm_sub_log)))
+
+# order groups 
+group_order <- c("healthy", "CHX", "AAV", "Efruxi")
+rpm_sub_scaled <- rpm_sub_scaled[, group_order]
+
+
+# define legend color breaks
+min <- min(-1.5)
+max <- max(1.5)
+
+# Make color breaks so that 0 is white
+n_colors <- 100
+breaks <- c(
+  seq(min, 0, length.out = n_colors/2 + 1),
+  seq(0, max, length.out = n_colors/2 + 1)[-1]
+)
+
+heatmap <- pheatmap(
+  rpm_sub_scaled,
+  main = paste("DEGs- 92 intersection"),
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  treeheight_row = 15,
+  color = colorRampPalette(c("navy","white","firebrick3"))(n_colors),
+  cellwidth = 9,
+  cellheight = 7,
+  fontsize_row = 8,
+  fontsize_col = 7,
+  breaks = breaks)
+
+ggsave("heatmap_DEGs_92_intersection.tiff", heatmap, dpi = 600, width = 6, height= 14)
+
+
+```
+
+```{r, Cytoscape + Wikipathways}
+library(dplyr)
+
+
+
+### prepare Data for cytoscape
+load("RNASeq_edgeR_data.RData")
+
+df_1 <- CHX_healthy
+df_2 <- AAV_CHX
+df_3 <- Efruxi_CHX
+
+# function filter columns 
+prep_df <- function(df, suffix) {
+  df %>% 
+    select(gene, external_gene_name, logFC, FDR) %>%
+    rename_with(~paste0(., "_", suffix), c(logFC, FDR))
+}
+
+CHXvsHC_clean <- prep_df(df_1, "CHXvsHC")
+AAVvsCHX_clean <- prep_df(df_2, "AAVvsCHX")
+EfruxivsCHX_clean <- prep_df(df_3, "EfruxivsCHX")
+
+# 3. Alle drei Tabellen über die Ensembl-ID (gene) zusammenführen
+master_table <- CHXvsHC_clean %>%
+  full_join(AAVvsCHX_clean, by = c("gene", "external_gene_name")) %>%
+  full_join(EfruxivsCHX_clean, by = c("gene", "external_gene_name"))
+
+
+
+### load Wikipathway data and check for completeness in RNASeq data
+
+### WP2316 PPAR Signalling
+WPathway <- rio::import(here::here(datadir, "pparg-signaling_Mm.csv"), trust = TRUE)
+# filter for genes only
+WPathway_genes <- WPathway %>%
+  filter(Type == "GeneProduct")
+
+
+# check how many genes from WPathway are present in edgeR DEG data
+comparison <- WPathway_genes %>%
+  dplyr::select(name, Type, XrefId, XrefDatasource) %>%
+  left_join(master_table, by = c("name" = "external_gene_name"))
+
+found <- sum(!is.na(comparison$logFC_CHXvsHC))
+total <- nrow(comparison)
+percent <- (found/total)*100
+message(paste0("Found: ", found, " of ", total, " genes (", round(percent, 2), "%)"))
+# which genes are missing
+missing_genes <- comparison %>%
+  filter(is.na(logFC_CHXvsHC)) %>%
+  select(name)
+print("Genes missing:")
+print(missing_genes)
+
+comparison_for_cytoscape <- comparison %>%
+  mutate(
+    Chart_Data = paste(logFC_CHXvsHC, logFC_AAVvsCHX, logFC_EfruxivsCHX, sep = ","),
+    Visual_Instructions = paste0("charts: bar: data=\"", Chart_Data, "\" colorlist=\"blue,white,red\" range=\"-5,5\""))
+comparison_for_cytoscape <- comparison_for_cytoscape %>%
+  mutate(Chart_Data_Clean = gsub("NA", "0.0", Chart_Data),
+         Visual_Instructions = paste0("charts: bar: data=\"", Chart_Data_Clean, 
+                                 "\" colorlist=\"blue,white,red\" range=\"-5,5\""))
+
+rio::export(comparison_for_cytoscape, here::here(resultsdir, "Cytoscape_Final_Charts_WP2316.csv"))
+
+
+
+
+### WP2872 White fat cell differentiation
+WPathway <- rio::import(here::here(datadir, "White_fat_cell_differentiation_Mm.csv"), trust = TRUE)
+# filter for genes only
+WPathway_genes <- WPathway %>%
+  filter(Type == "GeneProduct")
+
+
+# check how many genes from WPathway are present in edgeR DEG data
+comparison <- WPathway_genes %>%
+  dplyr::select(name, Type, XrefId, XrefDatasource) %>%
+  left_join(master_table, by = c("name" = "external_gene_name"))
+
+found <- sum(!is.na(comparison$logFC_CHXvsHC))
+total <- nrow(comparison)
+percent <- (found/total)*100
+message(paste0("Found: ", found, " of ", total, " genes (", round(percent, 2), "%)"))
+# which genes are missing
+missing_genes <- comparison %>%
+  filter(is.na(logFC_CHXvsHC)) %>%
+  select(name)
+print("Genes missing:")
+print(missing_genes)
+
+comparison_for_cytoscape <- comparison %>%
+  mutate(
+    Chart_Data = paste(logFC_CHXvsHC, logFC_AAVvsCHX, logFC_EfruxivsCHX, sep = ","),
+    Visual_Instructions = paste0("charts: bar: data=\"", Chart_Data, "\" colorlist=\"blue,white,red\" range=\"-5,5\""))
+comparison_for_cytoscape <- comparison_for_cytoscape %>%
+  mutate(Chart_Data_Clean = gsub("NA", "0.0", Chart_Data),
+         Visual_Instructions = paste0("charts: bar: data=\"", Chart_Data_Clean, 
+                                 "\" colorlist=\"blue,white,red\" range=\"-5,5\""))
+
+rio::export(comparison_for_cytoscape, here::here(resultsdir, "Cytoscape_Final_Charts_WP2872.csv"))
+
+
+
+WP2872 <- rio::import(here::here(resultsdir, "Cytoscape_Final_Charts_WP2872.csv"))
+```
+
+```{r, Pparg target filter}
+library(dplyr)
+library(biomaRt)
+library(ggplot2)
+library(org.Hs.eg.db)
+
+# load data
+treatment_DEGs_92 <- rio::import(here::here(datadir, "DEGs_treatments_92.RDS"), trust = TRUE)
+treatment_DEGs_unique_80 <- rio::import(here::here(datadir, "unique_DEGs_treatments_80.RDS"), trust = TRUE)
+common_intersection_12 <- rio::import(here::here(datadir, "DEGs_treatments_CHX_common_12.RDS"), trust = TRUE)
+
+common_intersection_12 <- as.data.frame(common_intersection_12)
+colnames(common_intersection_12)[1] <- "GeneSymbol"
+treatment_DEGs_unique_80 <- as.data.frame(treatment_DEGs_unique_80)
+colnames(treatment_DEGs_unique_80)[1] <- "GeneSymbol"
+treatment_DEGs_92 <- data.frame(value = unlist(treatment_DEGs_92))
+colnames(treatment_DEGs_92)[1] <- "GeneSymbol"
+
+# load pparg target files
+pparg_predicted <- rio::import(here::here(datadir,"PPARG_prediction.csv"), trust = TRUE)
+pparg_verified <- rio::import(here::here(datadir,"PPARG.xlsx"), trust = TRUE)
+
+
+# select high and medium confidence genes from predicted pparg target file
+pparg_predicted_filtered <- pparg_predicted %>%
+  filter(pparg_predicted$`confidence class` %in% c("high confidence", "medium confidence")) %>%
+  pull(GeneSymbol)
+class(pparg_predicted)
+
+# select mouse species genes from verified pparg target file
+pparg_verified_filtered <- pparg_verified %>%
+  filter(pparg_verified$Species == "mouse") %>%
+  pull(Gene_symbol)
+class(pparg_verified)
+# rename gene column
+pparg_verified_filtered <- pparg_verified_filtered %>%
+  dplyr::select(GeneSymbol = pparg_verified_filtered)
+
+
+### get overlapping genes and calculate percentage or verified genes ###
+
+# function for overlapping genes and percent
+get_overlap <- function(gene_list, deg_list) {
+  overlap <- intersect(gene_list, deg_list)
+  percent <- count(overlap) / count(deg_list) * 100
+  list(overlap = overlap, percent = percent)}
+
+# match verified genes to DEG intersections -  no overlaps with the verified geneset
+res_12_verified <- get_overlap(pparg_verified_filtered, common_intersection_12)
+res_80_verified <- get_overlap(pparg_verified_filtered, treatment_DEGs_unique_80)
+res_92_verified <- get_overlap(pparg_verified_filtered, treatment_DEGs_92)
+
+res_verified <- cbind(res_12_verified, res_80_verified, res_92_verified)
+res_verified <- data.frame(GeneSymbol = unlist(res_verified))
+
+
+human_entrez_all <- AnnotationDbi::select(
+  org.Hs.eg.db,
+  keys = unique(pparg_predicted$GeneSymbol),
+  columns = c("ENTREZID"),
+  keytype = "SYMBOL"
+)
+# check for NA
+human_entrez_all %>% 
+  dplyr::filter(is.na(ENTREZID))
+human_entrez_all <- human_entrez_all %>%
+  dplyr::filter(!is.na(ENTREZID))
+
+pparg_predicted_filtered <- orthogene::convert_orthologs(
+  gene_df = human_entrez_all,
+  gene_input = "SYMBOL",
+  gene_output = "columns",
+  input_species = "human",
+  output_species = "mouse",
+  method = "homologene", 
+  non121_strategy = "keep_popular")
+colnames(mouse_map_all)[2] <- "GeneSymbol"
+colnames(pparg_predicted_filtered)[colnames(pparg_predicted_filtered) == "ortholog_gene"] <- "GeneSymbol"
+pparg_predicted_filtered <- pparg_predicted_filtered$GeneSymbol
+pparg_predicted_filtered <- as.data.frame(pparg_predicted_filtered)
+colnames(pparg_predicted_filtered)[colnames(pparg_predicted_filtered) == "pparg_predicted_filtered"] <- "GeneSymbol"
+
+
+# convert human gene symbols of predicted pparg targets to mouse gene symbols
+convert_human_to_mouse <- function(gene_list) {
+    output = c()
+    mouse_human_genes = read.csv("https://www.informatics.jax.org/downloads/reports/HOM_MouseHumanSequence.rpt",sep="\t")
+
+    for(gene in gene_list) {
+          class_key = (mouse_human_genes %>% filter(Symbol == gene & Common.Organism.Name == "human"))[['DB.Class.Key']]
+          if( !identical(class_key, integer(0)) ) {
+            mouse_genes = (mouse_human_genes %>% filter(DB.Class.Key == class_key & Common.Organism.Name=="mouse, laboratory"))[,"Symbol"]
+            for(human_gene in mouse_genes) {
+                output = rbind(c(gene, human_gene), output)
+            }
+          }
+     }
+     return (output)
+}
+
+conversion <- convert_human_to_mouse(pparg_predicted_filtered)
+conversion <- data.frame(conversion)
+
+
+
+
+
+
+pparg_predicted_filtered_converted <- conversion %>%
+  dplyr::select(GeneSymbol = X2)
+
+
+### get overlapping genes and calculate percentage ###
+# match verified genes to DEG intersections -  no overlaps with the verified geneset
+res_12_predicted <- get_overlap(pparg_predicted_filtered, common_intersection_12)
+res_80_predicted <- get_overlap(pparg_predicted_filtered, treatment_DEGs_unique_80)
+res_92_predicted <- get_overlap(pparg_predicted_filtered, treatment_DEGs_92)
+
+res_predicted <- cbind(res_12_predicted, res_80_predicted, res_92_predicted)
+res_predicted <- data.frame(GeneSymbol = unlist(res_predicted))
+
+# export results
+res_verified %>%
+  rio::export(here::here(resultsdir, "res_verified.RDS")) 
+res_verified %>%
+  rio::export(here::here(resultsdir, "res_verified.xlsx")) 
+
+res_predicted %>%
+  rio::export(here::here(resultsdir, "res_predicted.RDS")) 
+res_predicted %>%
+  rio::export(here::here(resultsdir, "res_predicted.xlsx"))
+
+### get pie charts of percentages of overlapping PPARG target genes ###
+
+# plot function
+plot_overlap_pie <- function(overlap_df, deg_df, title) {
+  
+  n_overlap <- nrow(overlap_df)
+  n_total <- nrow(deg_df)
+  
+  df <- data.frame(
+    group = c("PPARG target", "Other DEGs"),
+    count = c(n_overlap, n_total - n_overlap)
+    )
+  
+  df$percent <- round(df$count / sum(df$count) * 100, 1)
+  
+  ggplot(df, aes(x = "", y = count, fill = group)) +
+    geom_bar(stat = "identity", width = 1, color = "white", alpha = 0.9) +
+    coord_polar("y") +
+    theme_void() +
+    labs(title = title, fill = NULL) +
+    geom_text(
+      aes(label = paste0(percent, "%")),
+      position = position_stack(vjust = 0.5),
+      size = 8) +
+    geom_bar(
+      stat = "identity", 
+      width = 1, 
+      color = "grey60", 
+      linewidth = 0.2, 
+      alpha = 0.1
+    ) +
+  scale_fill_manual(values = c("PPARG target" = "#FBF3B9", 
+                                "Other DEGs" = "#FFDCCC")) + 
+    theme(
+      plot.title = element_text(hjust = 0.5, 
+                                margin = margin(b = -15),
+                                size = 15),
+      panel.background = element_blank()) +
+
+    annotate("path",
+             x = 1.5, # Positioniert den Kreis genau am äußeren Rand (width/2 + 1)
+             y = seq(0, sum(df$count), length.out = 100),
+             color = "grey40", linewidth = 0.3)}
+
+
+# plots for predicted PPARG Targets #
+
+# overlapping pie charts - 12
+pie_12_predicted <- plot_overlap_pie(overlap_df = res_12_predicted$overlap,
+                                     deg_df = common_intersection_12,
+                                     title = "PPARG pred targets in DEGs - contrast 12")
+plot(pie_12_predicted)
+# check for validity
+nrow(res_12_predicted$overlap) <= nrow(common_intersection_12)
+all(res_12_predicted$overlap$GeneSymbol %in% common_intersection_12$GeneSymbol)
+ggsave("Pie_PPARG_pred_targets_12.tiff", pie_12_predicted, dpi = 600)
+
+# overlapping pie charts - 80
+pie_80_predicted <- plot_overlap_pie(overlap_df = res_80_predicted$overlap,
+                                     deg_df = treatment_DEGs_unique_80,
+                                     title = "PPARG pred targets in DEGs - contrast 80")
+plot(pie_80_predicted)
+# check for validity
+nrow(res_80_predicted$overlap) <= nrow(treatment_DEGs_unique_80)
+all(res_80_predicted$overlap$GeneSymbol %in% treatment_DEGs_unique_80$GeneSymbol)
+ggsave("Pie_PPARG_pred_targets_80.tiff", pie_80_predicted, dpi = 600)
+
+# overlapping pie charts - 92
+pie_92_predicted <- plot_overlap_pie(overlap_df = res_92_predicted$overlap,
+                                     deg_df = treatment_DEGs_92,
+                                     title = "PPARG pred targets in DEGs - contrast 92")
+plot(pie_92_predicted)
+# check for validity
+nrow(res_92_predicted$overlap) <= nrow(treatment_DEGs_92)
+all(res_92_predicted$overlap$GeneSymbol %in% treatment_DEGs_92$GeneSymbol)
+ggsave("Pie_PPARG_pred_targets_92.tiff", pie_92_predicted, dpi = 600)
+
+
+
+# for verified PPARG targets #
+
+# overlapping pie charts - 12
+pie_12_verified <- plot_overlap_pie(overlap_df = res_12_verified$overlap,
+                                     deg_df = common_intersection_12,
+                                     title = "PPARG verif targets in DEGs - contrast 12")
+plot(pie_12_verified)
+# check for validity
+nrow(pie_12_verified$overlap) <= nrow(common_intersection_12)
+all(pie_12_verified$overlap$GeneSymbol %in% common_intersection_12$GeneSymbol)
+ggsave("Pie_PPARG_verif_targets_12.tiff", pie_12_verified, dpi = 600)
+
+# overlapping pie charts - 80
+pie_80_verified <- plot_overlap_pie(overlap_df = res_80_verified$overlap,
+                                     deg_df = treatment_DEGs_unique_80,
+                                     title = "PPARG verif targets in DEGs - contrast 80")
+plot(pie_80_verified)
+# check for validity
+nrow(res_80_verified$overlap) <= nrow(treatment_DEGs_unique_80)
+all(res_80_verified$overlap$GeneSymbol %in% treatment_DEGs_unique_80$GeneSymbol)
+ggsave("Pie_PPARG_verif_targets_80.tiff", pie_80_verified, dpi = 600)
+
+# overlapping pie charts - 92
+pie_92_verified <- plot_overlap_pie(overlap_df = res_92_verified$overlap,
+                                     deg_df = treatment_DEGs_92,
+                                     title = "PPARG verif targets in DEGs - contrast 92")
+plot(pie_92_verified)
+# check for validity
+nrow(res_92_verified$overlap) <= nrow(treatment_DEGs_92)
+all(res_92_verified$overlap$GeneSymbol %in% treatment_DEGs_92$GeneSymbol)
+ggsave("Pie_PPARG_verif_targets_92.tiff", pie_92_verified, dpi = 600)
+
+```
+
