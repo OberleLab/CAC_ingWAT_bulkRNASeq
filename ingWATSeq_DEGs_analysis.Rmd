@@ -15,6 +15,22 @@ source(here::here("InitializeProject.R"))
 
 
 
+
+
+# **RNA-sequencing analysis**
+### Bulk RNA-sequencing of ingWAT RNA from FGF21 supplementd and CHX tumor-bearing animals 
+#### **Experiment TO302-354**
+
+
+This workflow contains data analysis of differential expressed gene (DEG) data. 
+The initial measurements and primary analysis (EdgeR) of this project was done by TAmiRNA GmbH.
+
+We start with loading all the EdgeR data containing gene names, log Fold changes, FDR (substitutes the adjusted p-value) for each contrast between two different contitions.
+At the end, we save all the data frames we just loaded in one project data file. 
+
+Before you begin, make sure that all your required packages are installed - you can do this by:
+"install.package(*package name*)" or with the help of BiocManager::install()
+
 ```{r, load data}
 
 files <- c(
@@ -43,9 +59,19 @@ save(Efruxi_AAV, AAV_CHX, AAV_HC, Efruxi_CHX, Efruxi_HC, CHX_healthy, file = "RN
 
 ```
 
-```{r, filter DEGs + Venns}
+
+### **Venn diagrams** of DEGs
+
+Next we will visualize the DEGs of the different contrasts first by dropping all non-significant genes.
+For this, we will use a logFC of at least 1 (2-fold increase) and a FDR of at least 0.05 (similar to adjusted p-value which is mostly Benjamini-Hochberg corrected).
+
+
+```{r, filter DEGs}
 library(dplyr)
 library(ggvenn)
+
+# Optional: either continue or load data
+#load("RNASeq_edgeR_data.RData")
 
 # set filter thresholds
 logFC_cutoff <- 1
@@ -75,6 +101,12 @@ sig_Efruxi_HC <- sig_genes(Efruxi_HC)
 sig_AAV_HC <- sig_genes(AAV_HC)
 sig_Efruxi_AAV <- sig_genes(Efruxi_AAV)
 
+# you can display the lists by:
+head(sig_Efruxi_CHX)
+
+
+
+# combine all contrasts
 sig_all_contrasts <- cbind(sig_Efruxi_CHX, 
                            sig_AAV_CHX, 
                            sig_CHX_HC, 
@@ -82,7 +114,8 @@ sig_all_contrasts <- cbind(sig_Efruxi_CHX,
                            sig_AAV_HC,
                            sig_Efruxi_AAV)
 
-# significant Dup EGs for each contrast
+
+# significant up DEGs for each contrast
 up_genes <- list(Efruxi_CHX = sig_Efruxi_CHX$up,
                  AAV_CHX = sig_AAV_CHX$up,
                  CHX_HC = sig_CHX_HC$up,
@@ -99,6 +132,25 @@ down_genes <- list(Efruxi_CHX = sig_Efruxi_CHX$down,
                  Efruxi_AAV = sig_Efruxi_AAV$down)
 
 
+```
+
+
+### Venn Diagrams
+
+Now you have all the **differential expressed genes in lists** for each contrast. 
+
+If you want to visualize intersections, you can continue with **Venn diagrams**. 
+This does not only give you a nice diagram but also the amount of common genes between your comparisons and the percentage of all genes is this intersection. 
+
+I like to stick with one color scheme for one project. You can change the color scheme either by applying different color scheme packages or by changing the hardcoded colors according to your linking. Here are some webpages for color inspirations:
+
+- https://sape.inf.usi.ch/quick-reference/ggplot2/colour
+- https://derekogle.com/NCGraphing/resources/colors
+- https://www.nceas.ucsb.edu/sites/default/files/2020-04/colorPaletteCheatsheet.pdf
+
+
+
+```{r Venns}
 
 ### Treated Tumor DEGs + untreated Tumor DEGs ###
 # intersection list for venn - up genes
@@ -123,6 +175,7 @@ ggvenn(up_genes_venn,
   theme(plot.title = element_text(hjust = 0.5, size = 10))
 
 
+
 # intersection list for venn - intersection DEGs Treatments
 treatments_DEGs_genes_venn <- list(Efruxi_CHX = sig_Efruxi_CHX$up,
                                   AAV_CHX = sig_AAV_CHX$up,
@@ -140,7 +193,8 @@ plot <- ggvenn(treatments_DEGs_genes_venn,
   theme(plot.title = element_text(hjust = 0.5, size = 10))
 
 plot
-ggsave("VENN_DEGs_treatments_600dpi.tiff", plot, dpi = 600)
+# save plot
+#ggsave("VENN_DEGs_treatments_600dpi.tiff", plot, dpi = 600)
 
 
 
@@ -149,25 +203,38 @@ common_intersection <- Reduce(intersect, list(sig_Efruxi_CHX$up, sig_AAV_CHX$up,
 # get intersection genes of AAVvsCHX and EfruxivsCHX
 common_up_DEGs_treatments <- Reduce(intersect, list(sig_Efruxi_CHX$up, sig_AAV_CHX$up))
 common_down_DEGs_treatments <- Reduce(intersect, list(sig_Efruxi_CHX$down, sig_AAV_CHX$down))
-# filter unique up in treated (80 DEGs up = 92 up genes - 12 common with CHX)            
-unique_up_DEGs_treatments <- setdiff(common_up_DEGs_treatments, common_up)
+
 
 
 # export data
-sig_all_contrasts %>% 
-  rio::export(here::here(datadir, "significant_DEGs_all_contrasts.RDS"))
-up_genes_venn %>% 
-  rio::export(here::here(datadir, "up_genes_treatments_CHX.RDS"))
-down_genes_venn %>% 
-  rio::export(here::here(datadir, "down_genes_treatments_CHX.RDS"))
-common_up_DEGs_treatments %>% 
-  rio::export(here::here(datadir, "DEGs_treatments_92.RDS"))
-unique_up_DEGs_treatments %>% 
-  rio::export(here::here(datadir, "unique_DEGs_treatments_80.RDS"))
-common_intersection %>% 
-  rio::export(here::here(datadir, "DEGs_treatments_CHX_common_12.RDS"))
+
+#sig_all_contrasts %>% 
+#  rio::export(here::here(datadir, "significant_DEGs_all_contrasts.RDS"))
+#up_genes_venn %>% 
+#  rio::export(here::here(datadir, "up_genes_treatments_CHX.RDS"))
+#down_genes_venn %>% 
+#  rio::export(here::here(datadir, "down_genes_treatments_CHX.RDS"))
+#common_up_DEGs_treatments %>% 
+#  rio::export(here::here(datadir, "DEGs_treatments_92.RDS"))
+#common_intersection %>% 
+#  rio::export(here::here(datadir, "DEGs_treatments_CHX_common_12.RDS"))
 
 ```
+
+
+## Heatmaps
+### Heatmap of DEG group means
+
+Of course, you can represent your seq-data also in a **heatmap** format. 
+You can do this either of the whole seq data or in a specific subset of your choice.
+
+For this we take the "Reads per million" table containing a normalized gene expression matrix, where raw read counts are scaled by the total number of mapped reads in each sample. For this heatmap we will take the mean of the respicates per group. 
+We first define a subset that is of high interest (e.g. all DEGs between healthy vs untreated tumor-bearing mice "sig_CHX_HC$all").
+Then we restructure our data frame to obtain the required format, then we preprocess the data by log transformation and z-scaling to handle skewed data and represent it better on a comparable scale. 
+
+With the "pheatmap" package you can also cluster rows and columns. Meaning that R performs hierarchical clustering by default to group similar data points and displays them in dendrograms. Be aware that clustering can also change the order of your data displayed.
+
+
 
 ```{r, Heatmaps of DEGs}
 library(dplyr)
@@ -185,11 +252,11 @@ intersect(genes_of_interest, rpm_mat$external_gene_name)
 
 # annotate groups
 count_cols <- grep("^\\d+_", colnames(rpm_sub), value = TRUE)
-count_cols
+#count_cols
 length(count_cols)
 
 groups <- sub("^\\d+_", "", count_cols)
-groups
+#groups
 table(groups)
 
 
@@ -245,10 +312,14 @@ heatmap <- pheatmap(
   fontsize_col = 9,
   breaks = breaks)
 
-ggsave("heatmap_DEGs_CHXvsHC.tiff", heatmap, dpi = 600, width = 5, height = 12)
+#ggsave("heatmap_DEGs_CHXvsHC.tiff", heatmap, dpi = 600, width = 5, height = 12)
 
 
 ```
+
+
+And one example for the DEG intersection of different groups (e.g. up in EFX_vs_CHX and up in AAV_vs_CHX).
+
 
 ```{r, Heatmaps of DEG intersections}
 library(pheatmap)
@@ -285,11 +356,11 @@ intersect(genes_of_interest, rpm_mat$external_gene_name)
 
 # annotate groups
 count_cols <- grep("^\\d+_", colnames(rpm_sub), value = TRUE)
-count_cols
+#count_cols
 length(count_cols)
 
 groups <- sub("^\\d+_", "", count_cols)
-groups
+#groups
 table(groups)
 
 
@@ -345,11 +416,185 @@ heatmap <- pheatmap(
   fontsize_row = 8,
   fontsize_col = 7,
   breaks = breaks)
+heatmap
+#ggsave("heatmap_DEGs_92_intersection.tiff", heatmap, dpi = 600, width = 6, height= 14)
+```
 
-ggsave("heatmap_DEGs_92_intersection.tiff", heatmap, dpi = 600, width = 6, height= 14)
+### Heatmap of gene sets
+
+And of course you can also do this for target gene sets. These can be either customized or downloaded as .gmt files for instance. 
+Best gene set source is msigDB which you might already know from GSEA. Be careful that you select the correct species!
+
+- https://www.gsea-msigdb.org/gsea/msigdb/mouse/collections.jsp
+
+This first snippet creates heatmaps for all replicates.
+
+```{r, Heatmaps of genesets, individual}
+library(dplyr)
+library(pheatmap)
+library(ggrepel)
+library(tibble)
+
+#import data
+rpm_mat <- rio::import(here::here(datadir, "genesRPMTable.xlsx"), trust = TRUE)
+
+# determine group names
+group_levels <- c("Healthy", "CHX", "AAV", "Efruxi")
+
+# define regex pattern
+pattern <- "^(.*?)_?(\\d+)_(healthy|chx|aav|efruxi)$"
+
+# get colnames and align against regex
+cn <- colnames(rpm_mat)
+sample_cols <- cn[grepl(pattern, cn, ignore.case = TRUE)]
+
+grp_raw <- tolower(sub(pattern, "\\3", sample_cols, ignore.case = TRUE))
+
+
+sample_info <- data.frame(
+  sample   = sample_cols,
+  celltype = sub(pattern, "\\1", sample_cols, ignore.case = TRUE),
+  animal   = sub(pattern, "\\2", sample_cols, ignore.case = TRUE),
+  group    = factor(group_levels[match(grp_raw, tolower(group_levels))],
+                    levels = group_levels),
+  row.names = sample_cols)
+table(sample_info$celltype, sample_info$group)
+
+
+# Load geneset data
+gmt <- here::here(datadir, "paper_geneset.gmt")
+gmt_inflamm_resp <- readLines(gmt) %>%
+  strsplit("\t") %>%
+  lapply(function(x) x[-c(1, 2)]) %>%
+  unlist() %>%
+  unique()
+
+# filter gene subset included in geneset
+mat <- rpm_mat %>%
+  filter(external_gene_name %in% gmt_inflamm_resp) %>%
+  distinct(external_gene_name, .keep_all = TRUE) %>%
+  select(external_gene_name, all_of(sample_cols)) %>%
+  column_to_rownames("external_gene_name") %>%
+  as.matrix()
+
+mat <- mat[intersect(gmt_inflamm_resp, rownames(mat)), , drop = FALSE]
+
+mat_log <- log2(mat + 1)
+nrow(mat_log); length(gmt_inflamm_resp) 
+
+
+
+### 1. For individual samples ### 
+  
+# for individual samples
+plot_indiv_heatmap <- function(samples, title, file = NULL, lim = 2) {
+  m <- mat_log[, samples, drop = FALSE]
+  m <- m[apply(m, 1, sd, na.rm = TRUE) > 0, , drop = FALSE]    # drop flat genes
+  m <- t(scale(t(m)))
+  m <- pmax(pmin(m, lim), -lim)
+
+  ann_col    <- sample_info[samples, "group", drop = FALSE]
+  ann_colors <- list(group = c(Healthy = "black", CHX = "grey75",
+                  AAV = "maroon", Efruxi = "#9FA3FF"))
+
+  n_colors <- 100
+  breaks <- c(seq(-lim, 0, length.out = n_colors/2 + 1),
+              seq(0, lim, length.out = n_colors/2 + 1)[-1])
+
+  ph <- pheatmap(m, main = title,
+                 cluster_rows = FALSE, cluster_cols = FALSE,
+                 color = colorRampPalette(c("navy", "white", "firebrick3"))(n_colors),
+                 breaks = breaks,
+                 annotation_col = ann_col, annotation_colors = ann_colors,
+                 cellwidth = 14, cellheight = 10, fontsize_row = 9,
+                 silent = TRUE)
+  grid::grid.newpage(); grid::grid.draw(ph$gtable)
+  if (!is.null(file))
+    ggplot2::ggsave(file, ph$gtable, dpi = 600, bg = "white",
+                    width = 1.5 + length(samples) * 14 / 72 + 2,
+                    height = nrow(m) * 10 / 72 + 2.5)
+  invisible(ph)
+}
+
+# plot
+plot_indiv_heatmap(sample_info %>% 
+                   arrange(group) %>% 
+                   pull(sample),
+                   "paper_geneset.gmt",
+                   "heatmap_paper_geneset.tiff")
+
+```
+
+
+Or you can do this also for the mean of each group replicate as before. 
+Be aware that you lose specificity when you take the mean instead of your individual replicates. 
+
+
+
+```{r Heatmaps of genesets, mean}
+### 2. For mean per celltypes ###
+
+# z scores of all samples per condition
+
+mean_by_group <- function(groups) {
+  sapply(groups, function(g) {
+    rowMeans(mat_log[, sample_info$group == g, drop = FALSE], na.rm = TRUE)
+  })
+}
+
+
+plot_mean_heatmap <- function(title, file = NULL, lim = 1.5) {
+  groups <- levels(sample_info$group)
+  m <- mean_by_group(groups)
+  m <- m[apply(m, 1, sd, na.rm = TRUE) > 0, , drop = FALSE]    # drop flat genes
+  m <- t(scale(t(m)))
+  m <- pmax(pmin(m, lim), -lim)
+  
+  ann_col <- data.frame(group = factor(colnames(m), levels = groups),
+                           row.names = colnames(m))
+  ann_colors <- list(group = c(Healthy = "black", CHX = "grey75",
+                  AAV = "maroon", Efruxi = "#9FA3FF"))
+
+  n_colors <- 100
+  breaks <- c(seq(-lim, 0, length.out = n_colors/2 + 1),
+              seq(0, lim, length.out = n_colors/2 + 1)[-1])
+
+  ph <- pheatmap(m, main = title,
+                 cluster_rows = FALSE, cluster_cols = FALSE,
+                 color = colorRampPalette(c("navy", "white", "firebrick3"))(n_colors),
+                 breaks = breaks,
+                 annotation_col = ann_col, annotation_colors = ann_colors,
+                 #gaps_col = seq(2, ncol(m) - 1, by = 2),    # gap between cell types
+                 cellwidth = 20, cellheight = 10, fontsize_row = 9, silent = TRUE)
+  grid::grid.newpage(); grid::grid.draw(ph$gtable)
+  if (!is.null(file))
+    ggplot2::ggsave(file, ph$gtable, dpi = 600, bg = "white",
+                    width = 2 + ncol(m) * 20 / 72 + 2,
+                    height = nrow(m) * 10 / 72 + 2.5)
+  invisible(ph)
+}
+
+
+plot_mean_heatmap("paper_geneset.gmt",
+                  "heatmap_paper_geneset_mean.tiff")
 
 
 ```
+
+
+
+
+### Cytoscape and Wikipathway
+
+This code prepares your data frames for specific Wikipathways similar to gene set referencing.
+You can import your Wikipathway of interest as .csv and align the egene expression of your dataset.
+
+The visual representation, however is done with cytoscape. 
+You can download the created dataframes which are suitable for cytoscape and apply them for pathway alignment and design. 
+
+- https://www.wikipathways.org/
+- https://cytoscape.org/
+
 
 ```{r, Cytoscape + Wikipathways}
 library(dplyr)
@@ -403,7 +648,6 @@ message(paste0("Found: ", found, " of ", total, " genes (", round(percent, 2), "
 missing_genes <- comparison %>%
   filter(is.na(logFC_CHXvsHC)) %>%
   select(name)
-print("Genes missing:")
 print(missing_genes)
 
 comparison_for_cytoscape <- comparison %>%
@@ -440,7 +684,6 @@ message(paste0("Found: ", found, " of ", total, " genes (", round(percent, 2), "
 missing_genes <- comparison %>%
   filter(is.na(logFC_CHXvsHC)) %>%
   select(name)
-print("Genes missing:")
 print(missing_genes)
 
 comparison_for_cytoscape <- comparison %>%
@@ -458,6 +701,17 @@ rio::export(comparison_for_cytoscape, here::here(resultsdir, "Cytoscape_Final_Ch
 
 WP2872 <- rio::import(here::here(resultsdir, "Cytoscape_Final_Charts_WP2872.csv"))
 ```
+
+
+
+### PPARg target genes
+
+This code focuses on filtering the publicly available PPARg target gene lists for confidence levels and species. 
+The filteres target genes are then aligned to the DEG data and visualized by Venn diagrams.
+
+- https://www.ppargene.org/
+
+
 
 ```{r, Pparg target filter}
 library(dplyr)
@@ -485,17 +739,16 @@ pparg_verified <- rio::import(here::here(datadir,"PPARG.xlsx"), trust = TRUE)
 # select high and medium confidence genes from predicted pparg target file
 pparg_predicted_filtered <- pparg_predicted %>%
   filter(pparg_predicted$`confidence class` %in% c("high confidence", "medium confidence")) %>%
-  pull(GeneSymbol)
-class(pparg_predicted)
+  pull(GeneSymbol) %>%
+  unique()
 
 # select mouse species genes from verified pparg target file
 pparg_verified_filtered <- pparg_verified %>%
-  filter(pparg_verified$Species == "mouse") %>%
-  pull(Gene_symbol)
+  filter(Species == "mouse") %>%
+  dplyr::select(GeneSymbol = Gene_symbol)
 class(pparg_verified)
 # rename gene column
-pparg_verified_filtered <- pparg_verified_filtered %>%
-  dplyr::select(GeneSymbol = pparg_verified_filtered)
+pparg_verified_filtered <- data.frame(GeneSymbol = pparg_verified_filtered)
 
 
 ### get overlapping genes and calculate percentage or verified genes ###
@@ -519,8 +772,7 @@ human_entrez_all <- AnnotationDbi::select(
   org.Hs.eg.db,
   keys = unique(pparg_predicted$GeneSymbol),
   columns = c("ENTREZID"),
-  keytype = "SYMBOL"
-)
+  keytype = "SYMBOL")
 # check for NA
 human_entrez_all %>% 
   dplyr::filter(is.na(ENTREZID))
@@ -535,40 +787,9 @@ pparg_predicted_filtered <- orthogene::convert_orthologs(
   output_species = "mouse",
   method = "homologene", 
   non121_strategy = "keep_popular")
-colnames(mouse_map_all)[2] <- "GeneSymbol"
-colnames(pparg_predicted_filtered)[colnames(pparg_predicted_filtered) == "ortholog_gene"] <- "GeneSymbol"
-pparg_predicted_filtered <- pparg_predicted_filtered$GeneSymbol
-pparg_predicted_filtered <- as.data.frame(pparg_predicted_filtered)
-colnames(pparg_predicted_filtered)[colnames(pparg_predicted_filtered) == "pparg_predicted_filtered"] <- "GeneSymbol"
 
-
-# convert human gene symbols of predicted pparg targets to mouse gene symbols
-convert_human_to_mouse <- function(gene_list) {
-    output = c()
-    mouse_human_genes = read.csv("https://www.informatics.jax.org/downloads/reports/HOM_MouseHumanSequence.rpt",sep="\t")
-
-    for(gene in gene_list) {
-          class_key = (mouse_human_genes %>% filter(Symbol == gene & Common.Organism.Name == "human"))[['DB.Class.Key']]
-          if( !identical(class_key, integer(0)) ) {
-            mouse_genes = (mouse_human_genes %>% filter(DB.Class.Key == class_key & Common.Organism.Name=="mouse, laboratory"))[,"Symbol"]
-            for(human_gene in mouse_genes) {
-                output = rbind(c(gene, human_gene), output)
-            }
-          }
-     }
-     return (output)
-}
-
-conversion <- convert_human_to_mouse(pparg_predicted_filtered)
-conversion <- data.frame(conversion)
-
-
-
-
-
-
-pparg_predicted_filtered_converted <- conversion %>%
-  dplyr::select(GeneSymbol = X2)
+# mouse symbols as data frame with column GeneSymbol
+pparg_predicted_filtered <- data.frame(GeneSymbol = unique(pparg_predicted_filtered$ortholog_gene))
 
 
 ### get overlapping genes and calculate percentage ###
@@ -601,8 +822,7 @@ plot_overlap_pie <- function(overlap_df, deg_df, title) {
   
   df <- data.frame(
     group = c("PPARG target", "Other DEGs"),
-    count = c(n_overlap, n_total - n_overlap)
-    )
+    count = c(n_overlap, n_total - n_overlap))
   
   df$percent <- round(df$count / sum(df$count) * 100, 1)
   
@@ -620,18 +840,15 @@ plot_overlap_pie <- function(overlap_df, deg_df, title) {
       width = 1, 
       color = "grey60", 
       linewidth = 0.2, 
-      alpha = 0.1
-    ) +
+      alpha = 0.1) +
   scale_fill_manual(values = c("PPARG target" = "#FBF3B9", 
                                 "Other DEGs" = "#FFDCCC")) + 
     theme(
-      plot.title = element_text(hjust = 0.5, 
-                                margin = margin(b = -15),
-                                size = 15),
+      plot.title = element_text(hjust = 0.5, margin = margin(b = -15), size = 15),
       panel.background = element_blank()) +
 
     annotate("path",
-             x = 1.5, # Positioniert den Kreis genau am äußeren Rand (width/2 + 1)
+             x = 1.5,
              y = seq(0, sum(df$count), length.out = 100),
              color = "grey40", linewidth = 0.3)}
 
